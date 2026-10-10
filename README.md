@@ -31,7 +31,7 @@ on it, and offer it to its users, at no cost.
   `Recorder.Unused` tells which recordings were never called.
 - **Masking**: writing a file always masks credentials first, in headers, bodies
   and query values. `Masker` says which, and `Masker.Keep` spares a header.
-- **Once per call**: `AddInteraction` writes a call to a file only if it is not
+- **Once per call**: `Masker.AddInteraction` writes a call to a file only if it is not
   in it yet, so a failure that recurs is recorded once.
 - **Large bodies**: a body that is not text is never read or written, only
   marked `bodyOmitted`, so a download streams to its caller as it is. A JSON

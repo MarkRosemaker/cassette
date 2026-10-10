@@ -21,7 +21,7 @@ func TestMask_Headers(t *testing.T) {
 		}},
 	}}
 
-	ias.Mask()
+	ias.MaskWith(cassette.DefaultMasker())
 
 	req, resp := ias[0].Request.Headers, ias[0].Response.Headers
 
@@ -55,7 +55,7 @@ func TestMask_HeadersBasicAuth(t *testing.T) {
 		}},
 	}}
 
-	ias.Mask()
+	ias.MaskWith(cassette.DefaultMasker())
 
 	want := "Basic " + strings.Repeat("*", len("dXNlcjpwYXNz"))
 	if got := ias[0].Request.Headers.Get("Authorization"); got != want {
@@ -102,7 +102,7 @@ func TestMask_Body(t *testing.T) {
 				Response: cassette.Response{Body: cassette.Body(tc.in)},
 			}}
 
-			ias.Mask()
+			ias.MaskWith(cassette.DefaultMasker())
 
 			if got := string(ias[0].Response.Body); got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
@@ -161,7 +161,7 @@ func TestMask_InvalidJSONUntouched(t *testing.T) {
 		Response: cassette.Response{Body: cassette.Body(body)},
 	}}
 
-	ias.Mask()
+	ias.MaskWith(cassette.DefaultMasker())
 
 	if got := string(ias[0].Response.Body); got != body {
 		t.Errorf("non-JSON body was altered: %q", got)
@@ -171,7 +171,7 @@ func TestMask_InvalidJSONUntouched(t *testing.T) {
 func TestMask_EmptyBody(t *testing.T) {
 	ias := cassette.Interactions{{Response: cassette.Response{}}}
 
-	ias.Mask() // must not panic
+	ias.MaskWith(cassette.DefaultMasker()) // must not panic
 
 	if len(ias[0].Response.Body) != 0 {
 		t.Errorf("empty body became %q", ias[0].Response.Body)
@@ -401,7 +401,7 @@ func TestMask_RdToken(t *testing.T) {
 		}},
 	}}
 
-	ias.Mask()
+	ias.MaskWith(cassette.DefaultMasker())
 
 	got := ias[0].Request.Headers["X-RD-Token"][0] //nolint:staticcheck
 	if got == "rd_live_9f8e7d6c5b4a3210" {
