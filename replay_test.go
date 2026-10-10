@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func recorded(t *testing.T, method, rawURL, body string, status int, answer stri
 	}
 
 	return &cassette.Interaction{
-		Request:  cassette.Request{Method: method, URL: cassette.NormalizeURL(*u), Body: cassette.Body(body)},
+		Request:  cassette.Request{Method: method, URL: *u, Body: cassette.Body(body)},
 		Response: cassette.Response{StatusCode: status, Body: cassette.Body(answer)},
 	}
 }
@@ -230,12 +231,16 @@ func TestReplay_Concurrent(t *testing.T) {
 	}
 }
 
-func TestNormalizeURL(t *testing.T) {
+func TestNewRequest_SortsQuery(t *testing.T) {
 	t.Parallel()
 
 	// sorted by name, each kept as written: a delimiter is no escaped comma, and values of one name keep their order
-	u, _ := url.Parse("https://x.example/p?ids=1,2&b=2&a=x%2Cy&b=1")
-	if got := cassette.NormalizeURL(*u); got.RawQuery != "a=x%2Cy&b=2&b=1&ids=1,2" {
+	req, err := cassette.NewRequest(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "https://x.example/p?ids=1,2&b=2&a=x%2Cy&b=1", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := req.URL; got.RawQuery != "a=x%2Cy&b=2&b=1&ids=1,2" {
 		t.Errorf("got %s", got.RawQuery)
 	}
 }
@@ -243,7 +248,7 @@ func TestNormalizeURL(t *testing.T) {
 func TestInteractions_URL(t *testing.T) {
 	t.Parallel()
 
-	ias, err := cassette.InteractionsUnmarshal([]byte(`[{"request":{"method":"GET","url":"https://x.example/p?b=1&a=2"},"response":{"statusCode":200}},{"request":{"method":"","url":""}}]`))
+	ias, err := readJSON(t, `[{"request":{"method":"GET","url":"https://x.example/p?b=1&a=2"},"response":{"statusCode":200}},{"request":{"method":"","url":""}}]`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,9 +258,21 @@ func TestInteractions_URL(t *testing.T) {
 		t.Errorf("got %s and scaffold %t", got, ias[1].Request.IsScaffold())
 	}
 
-	if _, err := cassette.InteractionsUnmarshal([]byte(`[{"request":{"method":"GET","url":"://bad"}}]`)); err == nil {
+	if _, err := readJSON(t, `[{"request":{"method":"GET","url":"://bad"}}]`); err == nil {
 		t.Error("a URL that does not parse: got no error")
 	}
+}
+
+// readJSON reads the interactions data holds, as written to a file.
+func readJSON(t *testing.T, data string) (cassette.Interactions, error) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "ias.json")
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	return cassette.InteractionsReadFile(path)
 }
 
 func TestWriteFile_Masks(t *testing.T) {
@@ -265,7 +282,7 @@ func TestWriteFile_Masks(t *testing.T) {
 	ia.Request.Headers = http.Header{"Authorization": {"Bearer secret"}, "X-Client": {"my-app"}}
 	path := filepath.Join(t.TempDir(), "ias.json")
 
-	if err := cassette.DefaultMasker().Keep("X-Client").WriteFile(path, cassette.Interactions{ia}); err != nil {
+	if err := (cassette.Interactions{ia}).WriteFile(path); err != nil {
 		t.Fatal(err)
 	}
 
@@ -294,7 +311,7 @@ func TestWriteFile_Masks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cassette.DefaultMasker().Keep("X-Client").WriteFile(path, written); err != nil {
+	if err := written.WriteFile(path); err != nil {
 		t.Fatal(err)
 	}
 
