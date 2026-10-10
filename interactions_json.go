@@ -47,14 +47,11 @@ func InteractionsReadFile(path string) (Interactions, error) {
 	return jsonutil.ReadFile[Interactions](path, jsonOpts)
 }
 
-// WriteFile writes the interactions as JSON to the file at path, masked with [DefaultMasker]; ias are left as they
-// are.
-func (ias Interactions) WriteFile(path string) error { return DefaultMasker().WriteFile(path, ias) }
-
-// WriteFile writes the interactions as JSON to the file at path, masked with m; ias are left as they are.
-func (m Masker) WriteFile(path string, ias Interactions) error {
+// WriteFile writes the interactions as JSON to the file at path, masked as [Interactions.Mask] does; ias are left as
+// they are.
+func (ias Interactions) WriteFile(path string) error {
 	masked := ias.clone()
-	masked.MaskWith(m)
+	masked.Mask()
 
 	return jsonutil.WriteFile(path, masked, jsonOpts)
 }
@@ -67,14 +64,14 @@ func (ias Interactions) MarshalWrite(w io.Writer) error {
 
 var mu sync.Mutex
 
-// AddInteraction adds ia to the interactions in the file at path, masked with m and with its bodies trimmed as
+// AddInteraction adds ia to the interactions in the file at path, masked as [Interactions.Mask] does and with its bodies trimmed as
 // [Interactions.TrimBodies] does with [MaxStringLen], writing the file right away; ia is left as it is. A call the
 // file holds already, the same request answered with the same status and body, is not added again: a client retrying
 // a call, or polling one, records it once.
-func (m Masker) AddInteraction(path string, ia *Interaction) error {
+func AddInteraction(path string, ia *Interaction) error {
 	ia = ia.clone()
 	ia.trimBodies(MaxStringLen)
-	ia.maskWith(m)
+	ia.maskWith(defaultMasker())
 
 	mu.Lock()
 	defer mu.Unlock()
@@ -92,7 +89,7 @@ func (m Masker) AddInteraction(path string, ia *Interaction) error {
 		return nil
 	}
 
-	if err := m.WriteFile(path, append(ias, ia)); err != nil {
+	if err := append(ias, ia).WriteFile(path); err != nil {
 		return fmt.Errorf("writing interactions file: %w", err)
 	}
 

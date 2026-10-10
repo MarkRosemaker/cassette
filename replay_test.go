@@ -282,7 +282,7 @@ func TestWriteFile_Masks(t *testing.T) {
 	ia.Request.Headers = http.Header{"Authorization": {"Bearer secret"}, "X-Client": {"my-app"}}
 	path := filepath.Join(t.TempDir(), "ias.json")
 
-	if err := cassette.DefaultMasker().Keep("X-Client").WriteFile(path, cassette.Interactions{ia}); err != nil {
+	if err := (cassette.Interactions{ia}).WriteFile(path); err != nil {
 		t.Fatal(err)
 	}
 
@@ -311,7 +311,7 @@ func TestWriteFile_Masks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := cassette.DefaultMasker().Keep("X-Client").WriteFile(path, written); err != nil {
+	if err := written.WriteFile(path); err != nil {
 		t.Fatal(err)
 	}
 
@@ -333,7 +333,7 @@ func TestAddInteraction_OncePerCall(t *testing.T) {
 
 	// the same call again, even at another time, is the same failure; another status or body is another
 	for _, ia := range []*cassette.Interaction{failure(502, "down"), failure(502, "down"), failure(500, "down"), failure(502, "gone")} {
-		if err := cassette.DefaultMasker().AddInteraction(path, ia); err != nil {
+		if err := cassette.AddInteraction(path, ia); err != nil {
 			t.Fatal(err)
 		}
 	}

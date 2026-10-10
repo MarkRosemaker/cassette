@@ -1,27 +1,25 @@
-package cassette_test
+package cassette
 
 import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/MarkRosemaker/cassette"
 )
 
 func TestMask_Headers(t *testing.T) {
-	ias := cassette.Interactions{{
-		Request: cassette.Request{Headers: http.Header{
+	ias := Interactions{{
+		Request: Request{Headers: http.Header{
 			"Authorization": {"Bearer secret-token-value"},
 			"X-Api-User":    {"11111111-2222-3333-4444-555555555555"},
 			"Accept":        {"application/json"},
 		}},
-		Response: cassette.Response{Headers: http.Header{
+		Response: Response{Headers: http.Header{
 			"Set-Cookie":   {"sess=0.11111111.2222222222.abcdef0; secure"},
 			"Content-Type": {"application/json"},
 		}},
 	}}
 
-	ias.MaskWith(cassette.DefaultMasker())
+	ias.Mask()
 
 	req, resp := ias[0].Request.Headers, ias[0].Response.Headers
 
@@ -49,13 +47,13 @@ func TestMask_Headers(t *testing.T) {
 // TestMask_HeadersBasicAuth covers that Basic keeps its scheme visible on
 // masking, the same way Bearer already does.
 func TestMask_HeadersBasicAuth(t *testing.T) {
-	ias := cassette.Interactions{{
-		Request: cassette.Request{Headers: http.Header{
+	ias := Interactions{{
+		Request: Request{Headers: http.Header{
 			"Authorization": {"Basic dXNlcjpwYXNz"},
 		}},
 	}}
 
-	ias.MaskWith(cassette.DefaultMasker())
+	ias.Mask()
 
 	want := "Basic " + strings.Repeat("*", len("dXNlcjpwYXNz"))
 	if got := ias[0].Request.Headers.Get("Authorization"); got != want {
@@ -98,11 +96,11 @@ func TestMask_Body(t *testing.T) {
 		want: `{"items":[1,2,3],"ok":true,"name":null}`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			ias := cassette.Interactions{{
-				Response: cassette.Response{Body: cassette.Body(tc.in)},
+			ias := Interactions{{
+				Response: Response{Body: Body(tc.in)},
 			}}
 
-			ias.MaskWith(cassette.DefaultMasker())
+			ias.Mask()
 
 			if got := string(ias[0].Response.Body); got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
@@ -117,15 +115,15 @@ func TestMask_Body(t *testing.T) {
 func TestMask_Values(t *testing.T) {
 	const accountID = "11111111-2222-3333-4444-555555555555"
 
-	ias := cassette.Interactions{{
-		Response: cassette.Response{Body: cassette.Body(
+	ias := Interactions{{
+		Response: Response{Body: Body(
 			`{"id":"` + accountID + `","ownerId":"` + accountID + `","other":"keep-me","n":5}`,
 		)},
 	}}
 
-	m := cassette.DefaultMasker()
+	m := defaultMasker()
 	m.Values = []string{accountID}
-	ias.MaskWith(m)
+	ias.maskWith(m)
 
 	want := `{"id":"00000000-0000-0000-0000-000000000000",` +
 		`"ownerId":"00000000-0000-0000-0000-000000000000","other":"keep-me","n":5}`
@@ -137,15 +135,15 @@ func TestMask_Values(t *testing.T) {
 // TestMask_ValueInsideLargerString covers an identifier embedded in a longer
 // string, such as a user agent or a URL, rather than being the whole value.
 func TestMask_ValueInsideLargerString(t *testing.T) {
-	ias := cassette.Interactions{{
-		Response: cassette.Response{Body: cassette.Body(
+	ias := Interactions{{
+		Response: Response{Body: Body(
 			`{"note":"contact someone@personal.test for access"}`,
 		)},
 	}}
 
-	m := cassette.DefaultMasker()
+	m := defaultMasker()
 	m.Values = []string{"someone@personal.test"}
-	ias.MaskWith(m)
+	ias.maskWith(m)
 
 	want := `{"note":"contact john.doe@example.com for access"}`
 	if got := string(ias[0].Response.Body); got != want {
@@ -157,11 +155,11 @@ func TestMask_ValueInsideLargerString(t *testing.T) {
 func TestMask_InvalidJSONUntouched(t *testing.T) {
 	const body = `<html>not json at all</html>`
 
-	ias := cassette.Interactions{{
-		Response: cassette.Response{Body: cassette.Body(body)},
+	ias := Interactions{{
+		Response: Response{Body: Body(body)},
 	}}
 
-	ias.MaskWith(cassette.DefaultMasker())
+	ias.Mask()
 
 	if got := string(ias[0].Response.Body); got != body {
 		t.Errorf("non-JSON body was altered: %q", got)
@@ -169,9 +167,9 @@ func TestMask_InvalidJSONUntouched(t *testing.T) {
 }
 
 func TestMask_EmptyBody(t *testing.T) {
-	ias := cassette.Interactions{{Response: cassette.Response{}}}
+	ias := Interactions{{Response: Response{}}}
 
-	ias.MaskWith(cassette.DefaultMasker()) // must not panic
+	ias.Mask() // must not panic
 
 	if len(ias[0].Response.Body) != 0 {
 		t.Errorf("empty body became %q", ias[0].Response.Body)
@@ -208,13 +206,13 @@ func TestMask_IDKeys(t *testing.T) {
 		want: `{"id":7}`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			ias := cassette.Interactions{{
-				Response: cassette.Response{Body: cassette.Body(tc.in)},
+			ias := Interactions{{
+				Response: Response{Body: Body(tc.in)},
 			}}
 
-			m := cassette.DefaultMasker()
+			m := defaultMasker()
 			m.IDKeys = []string{"id"}
-			ias.MaskWith(m)
+			ias.maskWith(m)
 
 			if got := string(ias[0].Response.Body); got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
@@ -241,7 +239,7 @@ func TestIsMasked(t *testing.T) {
 		{"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", false},
 		{"5 * 3 = 15", false},
 	} {
-		if got := cassette.IsMasked(tc.in); got != tc.want {
+		if got := IsMasked(tc.in); got != tc.want {
 			t.Errorf("IsMasked(%q) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
@@ -284,13 +282,13 @@ func TestMask_NameKeys(t *testing.T) {
 		want: `{"breed":"Domestic Shorthair"}`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			ias := cassette.Interactions{{
-				Response: cassette.Response{Body: cassette.Body(tc.in)},
+			ias := Interactions{{
+				Response: Response{Body: Body(tc.in)},
 			}}
 
-			m := cassette.DefaultMasker()
+			m := defaultMasker()
 			m.NameKeys = []string{"user"}
-			ias.MaskWith(m)
+			ias.maskWith(m)
 
 			if got := string(ias[0].Response.Body); got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
@@ -312,7 +310,7 @@ func TestRedactsBodyKey(t *testing.T) {
 		{"count", false},
 		{"", false},
 	} {
-		if got := cassette.RedactsBodyKey(tc.in); got != tc.want {
+		if got := RedactsBodyKey(tc.in); got != tc.want {
 			t.Errorf("RedactsBodyKey(%q) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
@@ -359,13 +357,13 @@ func TestMask_UsernameKeys(t *testing.T) {
 		want: `{"nickname":"frieda"}`,
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
-			ias := cassette.Interactions{{
-				Response: cassette.Response{Body: cassette.Body(tc.in)},
+			ias := Interactions{{
+				Response: Response{Body: Body(tc.in)},
 			}}
 
-			m := cassette.DefaultMasker()
+			m := defaultMasker()
 			m.UsernameKeys = []string{"username", "lowerCaseUsername"}
-			ias.MaskWith(m)
+			ias.maskWith(m)
 
 			if got := string(ias[0].Response.Body); got != tc.want {
 				t.Errorf("got  %s\nwant %s", got, tc.want)
@@ -379,13 +377,13 @@ func TestIsMasked_Personas(t *testing.T) {
 		"john.doe@example.com", "John Doe",
 		"johndoe", "JohnDoe", "JOHNDOE", "@johndoe", "@JohnDoe",
 	} {
-		if !cassette.IsMasked(s) {
+		if !IsMasked(s) {
 			t.Errorf("IsMasked(%q) = false, want true", s)
 		}
 	}
 
 	for _, s := range []string{"john", "doe", "John Doe Smith Jones Brown"} {
-		if cassette.IsMasked(s) {
+		if IsMasked(s) {
 			t.Errorf("IsMasked(%q) = true, want false", s)
 		}
 	}
@@ -394,21 +392,21 @@ func TestIsMasked_Personas(t *testing.T) {
 func TestMask_RdToken(t *testing.T) {
 	// X-Rd-Token is an API token. The non-canonical spelling is deliberate:
 	// the masker lowercases both sides, so it matches regardless of case.
-	ias := cassette.Interactions{{
-		Request: cassette.Request{Headers: http.Header{
+	ias := Interactions{{
+		Request: Request{Headers: http.Header{
 			"X-RD-Token": {"rd_live_9f8e7d6c5b4a3210"},
 			"Accept":     {"application/json"},
 		}},
 	}}
 
-	ias.MaskWith(cassette.DefaultMasker())
+	ias.Mask()
 
 	got := ias[0].Request.Headers["X-RD-Token"][0] //nolint:staticcheck
 	if got == "rd_live_9f8e7d6c5b4a3210" {
 		t.Fatal("X-Rd-Token was not masked")
 	}
 
-	if !cassette.IsMasked(got) {
+	if !IsMasked(got) {
 		t.Errorf("X-Rd-Token = %q, want a masked value", got)
 	}
 
