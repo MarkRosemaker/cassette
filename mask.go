@@ -120,6 +120,21 @@ func defaultMasker() masker {
 	}
 }
 
+// MaskOption makes [AddInteraction] redact more than it always does.
+type MaskOption func(*masker)
+
+// MaskHeaders makes [AddInteraction] redact the values of the headers named, in requests and responses alike, as one
+// an API names to carry its key, such as X-Finnhub-Token. Matching is case-insensitive.
+func MaskHeaders(names ...string) MaskOption {
+	return func(m *masker) { m.HeaderKeys = append(m.HeaderKeys, names...) }
+}
+
+// MaskKeys makes [AddInteraction] redact the values of the query parameters and body members named, as a query
+// parameter an API names to carry its key. Matching is case-insensitive.
+func MaskKeys(names ...string) MaskOption {
+	return func(m *masker) { m.BodyKeys = append(m.BodyKeys, names...) }
+}
+
 // rules is the compiled form of a [masker]: key sets rather than slices.
 type rules struct {
 	headers, keys, ids, names, usernames map[string]bool
