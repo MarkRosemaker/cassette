@@ -136,6 +136,19 @@ func TestReplay(t *testing.T) {
 				{method: "GET", url: api + "/a", headers: http.Header{"Authorization": {"Bearer real"}, "X-Client": {"lib"}, "User-Agent": {"app"}}, want: `"ok"`},
 			},
 		},
+		"a header recorded masked matches any value of any length": {
+			recorded: []*cassette.Interaction{func() *cassette.Interaction {
+				ia := recorded(t, "GET", api+"/a", "", 200, `"ok"`)
+				ia.Request.Headers = http.Header{"X-Finnhub-Token": {"****"}}
+
+				return ia
+			}()},
+			opts: []cassette.Option{cassette.WithMatcher(cassette.MatchRequest(cassette.CompareHeaders()))},
+			calls: []request{
+				{method: "GET", url: api + "/a", want: `GET https://api.example.com/a: no recorded interaction`},
+				{method: "GET", url: api + "/a", headers: http.Header{"X-Finnhub-Token": {"a-longer-test-key"}}, want: `"ok"`},
+			},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
