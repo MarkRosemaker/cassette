@@ -450,3 +450,39 @@ func TestInteraction_Mask(t *testing.T) {
 		t.Errorf("query is %q, want token masked and symbol kept", got)
 	}
 }
+
+// TestMask_CredentialHeaders masks by default a header whose name ends in a word that says it carries a credential,
+// whatever the API calls it, and leaves others, and a query parameter such a word ends, as a page_token, alone.
+func TestMask_CredentialHeaders(t *testing.T) {
+	t.Parallel()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/list?page_token=next", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, h := range []string{"X-Finnhub-Token", "X-Goog-Api-Key", "X-Shopify-Access-Token", "X-Hub-Signature", "X-Client", "Accept"} {
+		req.Header.Set(h, "s3cr3t")
+	}
+
+	rec, err := NewRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ias := Interactions{{Request: rec}}
+	ias.Mask()
+
+	for h, masked := range map[string]bool{
+		"X-Finnhub-Token": true, "X-Goog-Api-Key": true, "X-Shopify-Access-Token": true, "X-Hub-Signature": true,
+		"X-Client": false, "Accept": false,
+	} {
+		if got := ias[0].Request.Headers.Get(h); (got != "s3cr3t") != masked {
+			t.Errorf("%s is %q, want it masked: %v", h, got, masked)
+		}
+	}
+
+	if got := ias[0].Request.URL.RawQuery; got != "page_token=next" {
+		t.Errorf("query is %q, want a cursor kept", got)
+	}
+}
