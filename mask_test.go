@@ -414,3 +414,39 @@ func TestMask_RdToken(t *testing.T) {
 		t.Errorf("Accept should be untouched, got %q", got)
 	}
 }
+
+// TestInteraction_Mask redacts, in one interaction, the defaults and what the options name, and leaves the rest.
+func TestInteraction_Mask(t *testing.T) {
+	t.Parallel()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/quote?symbol=F&token=k3y", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("Authorization", "Bearer k3y")
+	req.Header.Set("X-Finnhub-Token", "k3y")
+	req.Header.Set("Accept", "application/json")
+
+	rec, err := NewRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ia := &Interaction{Request: rec}
+	ia.Mask(MaskHeaders("X-Finnhub-Token"))
+
+	for _, h := range []string{"Authorization", "X-Finnhub-Token"} {
+		if got := ia.Request.Headers.Get(h); strings.Contains(got, "k3y") {
+			t.Errorf("%s is %q, want it masked", h, got)
+		}
+	}
+
+	if got := ia.Request.Headers.Get("Accept"); got != "application/json" {
+		t.Errorf("Accept is %q, want it kept", got)
+	}
+
+	if got := ia.Request.URL.RawQuery; strings.Contains(got, "k3y") || !strings.Contains(got, "symbol=F") {
+		t.Errorf("query is %q, want token masked and symbol kept", got)
+	}
+}
