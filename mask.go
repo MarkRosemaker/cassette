@@ -120,16 +120,16 @@ func defaultMasker() masker {
 	}
 }
 
-// MaskOption makes [AddInteraction] redact more than it always does.
+// MaskOption makes [AddInteraction] or [Interaction.Mask] redact more than they always do.
 type MaskOption func(*masker)
 
-// MaskHeaders makes [AddInteraction] redact the values of the headers named, in requests and responses alike, as one
+// MaskHeaders makes [AddInteraction] or [Interaction.Mask] redact the values of the headers named, in requests and responses alike, as one
 // an API names to carry its key, such as X-Finnhub-Token. Matching is case-insensitive.
 func MaskHeaders(names ...string) MaskOption {
 	return func(m *masker) { m.HeaderKeys = append(m.HeaderKeys, names...) }
 }
 
-// MaskKeys makes [AddInteraction] redact the values of the query parameters and body members named, as a query
+// MaskKeys makes [AddInteraction] or [Interaction.Mask] redact the values of the query parameters and body members named, as a query
 // parameter an API names to carry its key. Matching is case-insensitive.
 func MaskKeys(names ...string) MaskOption {
 	return func(m *masker) { m.BodyKeys = append(m.BodyKeys, names...) }
@@ -155,6 +155,17 @@ func (ia *Interaction) maskWith(m masker) {
 
 // Mask redacts credentials in place: in headers, in bodies and in query values.
 func (ias Interactions) Mask() { ias.maskWith(defaultMasker()) }
+
+// Mask redacts credentials in ia in place, as [Interactions.Mask] does, and what opts name besides: a client masks the
+// call it records as soon as it records it, so that whatever writes it later, and however, never writes its key.
+func (ia *Interaction) Mask(opts ...MaskOption) {
+	m := defaultMasker()
+	for _, opt := range opts {
+		opt(&m)
+	}
+
+	ia.maskWith(m)
+}
 
 // maskWith redacts sensitive values in place according to m.
 func (ias Interactions) maskWith(m masker) {

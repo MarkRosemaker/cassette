@@ -69,14 +69,9 @@ var mu sync.Mutex
 // away; ia is left as it is. A call the file holds already, the same request answered with the same status and body, is
 // not added again: a client retrying a call, or polling one, records it once.
 func AddInteraction(path string, ia *Interaction, opts ...MaskOption) error {
-	m := defaultMasker()
-	for _, opt := range opts {
-		opt(&m)
-	}
-
 	ia = ia.clone()
 	ia.trimBodies(MaxStringLen)
-	ia.maskWith(m)
+	ia.Mask(opts...)
 
 	mu.Lock()
 	defer mu.Unlock()
