@@ -116,20 +116,20 @@ func TestAddInteraction_NoBody(t *testing.T) {
 	}
 }
 
-// TestAddInteraction_MaskOptions redacts the header and the query parameter an API names to carry its key, which the
-// default masking does not know, only where an option names them.
+// TestAddInteraction_MaskOptions redacts a header and a query parameter an API names to carry its key, which the
+// default masking does not take for credentials, only where an option names them.
 func TestAddInteraction_MaskOptions(t *testing.T) {
 	t.Parallel()
 
 	const key = "c3cr3tk3y"
 
 	call := func() *cassette.Interaction {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/quote?symbol=F&apikey="+key, http.NoBody)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/quote?symbol=F&code="+key, http.NoBody)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		req.Header.Set("X-Finnhub-Token", key)
+		req.Header.Set("X-Finnhub", key)
 
 		rec, err := cassette.NewRequest(req)
 		if err != nil {
@@ -157,7 +157,7 @@ func TestAddInteraction_MaskOptions(t *testing.T) {
 		t.Fatal("the default masking redacted a header and a query parameter it does not know")
 	}
 
-	got := written(cassette.MaskHeaders("x-finnhub-token"), cassette.MaskKeys("apikey"))
+	got := written(cassette.MaskHeaders("x-finnhub"), cassette.MaskKeys("code"))
 	if strings.Contains(got, key) {
 		t.Errorf("the key is written: %s", got)
 	}
