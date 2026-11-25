@@ -136,6 +136,24 @@ func TestReplay(t *testing.T) {
 				{method: "GET", url: api + "/a", headers: http.Header{"Authorization": {"Bearer real"}, "X-Client": {"lib"}, "User-Agent": {"app"}}, want: `"ok"`},
 			},
 		},
+		"an optional header is compared where recorded, and may be sent where not": {
+			recorded: []*cassette.Interaction{
+				func() *cassette.Interaction {
+					ia := recorded(t, "GET", api+"/a", "", 200, `"a"`)
+					ia.Request.Headers = http.Header{"Accept": {"application/json"}}
+
+					return ia
+				}(),
+				recorded(t, "GET", api+"/b", "", 200, `"b"`),
+			},
+			opts: []cassette.Option{cassette.WithMatcher(cassette.MatchRequest(cassette.CompareHeaders(), cassette.OptionalHeaders("Accept")))},
+			calls: []request{
+				{method: "GET", url: api + "/a", headers: http.Header{"Accept": {"text/html"}}, want: `GET https://api.example.com/a: no recorded interaction`},
+				{method: "GET", url: api + "/a", want: `GET https://api.example.com/a: no recorded interaction`},
+				{method: "GET", url: api + "/a", headers: http.Header{"Accept": {"application/json"}}, want: `"a"`},
+				{method: "GET", url: api + "/b", headers: http.Header{"Accept": {"application/json"}}, want: `"b"`},
+			},
+		},
 		"a header recorded masked matches any value of any length": {
 			recorded: []*cassette.Interaction{func() *cassette.Interaction {
 				ia := recorded(t, "GET", api+"/a", "", 200, `"ok"`)
