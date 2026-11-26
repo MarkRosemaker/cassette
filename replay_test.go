@@ -136,7 +136,7 @@ func TestReplay(t *testing.T) {
 				{method: "GET", url: api + "/a", headers: http.Header{"Authorization": {"Bearer real"}, "X-Client": {"lib"}, "User-Agent": {"app"}}, want: `"ok"`},
 			},
 		},
-		"an optional header is compared where recorded, and may be sent where not": {
+		"an optional header is compared where recorded, may hold more values, and may be sent where not": {
 			recorded: []*cassette.Interaction{
 				func() *cassette.Interaction {
 					ia := recorded(t, "GET", api+"/a", "", 200, `"a"`)
@@ -151,6 +151,7 @@ func TestReplay(t *testing.T) {
 				{method: "GET", url: api + "/a", headers: http.Header{"Accept": {"text/html"}}, want: `GET https://api.example.com/a: no recorded interaction`},
 				{method: "GET", url: api + "/a", want: `GET https://api.example.com/a: no recorded interaction`},
 				{method: "GET", url: api + "/a", headers: http.Header{"Accept": {"application/json"}}, want: `"a"`},
+				{method: "GET", url: api + "/a", headers: http.Header{"Accept": {"text/html, application/json"}}, want: `"a"`},
 				{method: "GET", url: api + "/b", headers: http.Header{"Accept": {"application/json"}}, want: `"b"`},
 			},
 		},

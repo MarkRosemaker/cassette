@@ -247,9 +247,10 @@ func OptionalAuthorization(optional func(*http.Request) bool) MatchOption {
 	return func(m *matcher) { m.optionalAuth = optional }
 }
 
-// OptionalHeaders makes [MatchRequest] match a recording without the headers named to a request that has them, and
-// compare them where the recording has them: a header a client has begun to send, such as Accept, is missing from what
-// was recorded before.
+// OptionalHeaders makes [MatchRequest] match a recording without the headers named to a request that has them, and one
+// with them to a request that sends every value recorded, of a comma-separated list, and more: a header a client has
+// begun to send, such as Accept, is missing from what was recorded before, and a media type it has learned to accept
+// from a response recorded since is missing from the Accept recorded with it.
 func OptionalHeaders(names ...string) MatchOption {
 	return func(m *matcher) {
 		if m.optional == nil {
@@ -319,8 +320,9 @@ func (m *matcher) matchHeaders(req *http.Request, got http.Header, rec Request) 
 	}
 
 	for name := range m.optional {
-		if _, ok := want[name]; !ok {
+		if w, ok := want[name]; !ok || len(w) == 1 && len(got[name]) == 1 && hasAll(got[name][0], w[0]) {
 			got.Del(name)
+			want.Del(name)
 		}
 	}
 
@@ -345,4 +347,20 @@ func (m *matcher) matchHeaders(req *http.Request, got http.Header, rec Request) 
 // isNotMasked reports whether s is anything but a masked value: one or more asterisks.
 func isNotMasked(s string) bool {
 	return strings.Trim(s, "*") != "" || s == ""
+}
+
+// hasAll reports whether the comma-separated list got holds every value of want.
+func hasAll(got, want string) bool {
+	values := strings.Split(got, ",")
+	for i, v := range values {
+		values[i] = strings.TrimSpace(v)
+	}
+
+	for v := range strings.SplitSeq(want, ",") {
+		if !slices.Contains(values, strings.TrimSpace(v)) {
+			return false
+		}
+	}
+
+	return true
 }
