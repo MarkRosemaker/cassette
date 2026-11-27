@@ -166,3 +166,50 @@ func TestAddInteraction_MaskOptions(t *testing.T) {
 		t.Errorf("a parameter no option names is masked: %s", got)
 	}
 }
+
+// A body of text other than JSON, such as XML, is written as a JSON string and read back, and replayed, as the text it
+// was: quotes and line breaks included.
+func TestInteractionsReadFile_TextBody(t *testing.T) {
+	t.Parallel()
+
+	const body = "<FlexStatementResponse timestamp=\"27 November, 2026\">\n<Status>Success</Status>\n</FlexStatementResponse>"
+
+	path := filepath.Join(t.TempDir(), "interactions.json")
+	ia := interaction(t, nil, []byte(body))
+	ia.Response.Headers = http.Header{"Content-Type": {"text/xml;charset=UTF-8"}}
+
+	if err := cassette.AddInteraction(path, ia); err != nil {
+		t.Fatal(err)
+	}
+
+	ias, err := cassette.InteractionsReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := string(ias[0].Response.Body); got != body {
+		t.Fatalf("read back %q, want %q", got, body)
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://example.com/things", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp, err := cassette.Replay(ias).RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rsp.Body.Close()
+
+	got, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if string(got) != body {
+		t.Errorf("replayed %q, want %q", got, body)
+	}
+}
